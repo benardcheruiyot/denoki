@@ -14,6 +14,10 @@ function formatMoney(amount) {
     return `Ksh ${Number(amount).toLocaleString()}`;
 }
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // Helper to format phone number to 254XXXXXXXXX
 function formatPhoneNumber(phone) {
     let p = phone.toString().replace(/\D/g, ''); // Remove non-digits
@@ -131,27 +135,48 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
                 throw new Error(`STK setup incomplete: ${readiness.missing.join(', ')}`);
             }
 
-            // Call the Node backend
-            const response = await fetch('/api/stk_initiate.js', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    phone: formattedPhone,
-                    amount: selectedLoan.fee
-                })
-            });
+            // Call backend with retry/backoff for transient Daraja outages.
+            let result = null;
+            const maxInitiateAttempts = 3;
+            for (let attempt = 1; attempt <= maxInitiateAttempts; attempt++) {
+                const response = await fetch('/api/stk_initiate.js', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        phone: formattedPhone,
+                        amount: selectedLoan.fee
+                    })
+                });
 
-            let result;
-            try {
-                result = await response.json();
-            } catch (_err) {
-                throw new Error('Backend returned an invalid response.');
-            }
+                try {
+                    result = await response.json();
+                } catch (_err) {
+                    throw new Error('Backend returned an invalid response.');
+                }
 
-            if (!response.ok) {
-                throw new Error(result.message || 'STK initiation failed.');
+                if (response.ok) {
+                    break;
+                }
+
+                const retryable = Boolean(result?.retryable);
+                const canRetry = retryable && attempt < maxInitiateAttempts;
+                if (!canRetry) {
+                    throw new Error(result?.message || 'STK initiation failed.');
+                }
+
+                const retryDelay = Number(result?.retryAfterMs || 2500) + ((attempt - 1) * 1500);
+                Swal.update({
+                    html: `
+                        <div class="modern-processing">
+                            <div class="modern-spinner"></div>
+                            <div class="modern-processing-title">Retrying M-Pesa Prompt (${attempt}/${maxInitiateAttempts - 1})</div>
+                            <div class="modern-processing-note">Daraja is temporarily unavailable. Retrying in ${Math.ceil(retryDelay / 1000)}s...</div>
+                        </div>
+                    `
+                });
+                await sleep(retryDelay);
             }
 
             if (result.success) {
@@ -208,20 +233,34 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
                             });
                         } else if (statusResult.status === 'FAILED') {
                             clearInterval(pollInterval);
-                            Swal.fire({
+                            const retryChoice = await Swal.fire({
                                 icon: 'error',
                                 title: 'Payment Failed',
-                                text: statusResult.message || 'The transaction was not completed.'
+                                text: statusResult.message || 'The transaction was not completed.',
+                                showCancelButton: true,
+                                confirmButtonText: 'Retry Now',
+                                cancelButtonText: 'Close',
+                                confirmButtonColor: '#00A651'
                             });
+                            if (retryChoice.isConfirmed) {
+                                setTimeout(() => document.getElementById('apply-btn').click(), 100);
+                            }
                         } else {
                             // Still PENDING
                             if (attempts >= maxAttempts) {
                                 clearInterval(pollInterval);
-                                Swal.fire({
+                                const timeoutChoice = await Swal.fire({
                                     icon: 'warning',
                                     title: 'Timeout',
-                                    text: 'We could not verify your payment in time. Please check your SMS.'
+                                    text: 'We could not verify your payment in time. Please check your SMS.',
+                                    showCancelButton: true,
+                                    confirmButtonText: 'Retry Now',
+                                    cancelButtonText: 'Close',
+                                    confirmButtonColor: '#00A651'
                                 });
+                                if (timeoutChoice.isConfirmed) {
+                                    setTimeout(() => document.getElementById('apply-btn').click(), 100);
+                                }
                             }
                         }
                     } catch (e) {
@@ -238,8 +277,10 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
             const lowerMsg = String(error.message || '').toLowerCase();
             const helpText = lowerMsg.includes('wrong credentials')
                 ? 'Daraja credentials mismatch: verify shortcode and Lipa na M-Pesa passkey.'
+                : lowerMsg.includes('agent number and store number entered do not match')
+                ? 'BuyGoods profile mismatch: ensure shortcode and passkey are from the same till/store profile in Daraja.'
                 : 'Daraja may be slow or unavailable. Wait a moment and try again.';
-            Swal.fire({
+            const retryChoice = await Swal.fire({
                 title: 'Payment Failed',
                 html: `
                     <p style="font-size: 0.9rem;">${error.message || 'Unable to process payment. Please try again.'}</p>
@@ -248,13 +289,18 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
                     </p>
                 `,
                 icon: 'error',
-                confirmButtonText: 'Try Again',
+                showCancelButton: true,
+                confirmButtonText: 'Retry Now',
+                cancelButtonText: 'Close',
                 confirmButtonColor: '#00A651',
                 customClass: {
                     popup: 'modern-popup',
                     htmlContainer: 'modern-html'
                 }
             });
+            if (retryChoice.isConfirmed) {
+                setTimeout(() => document.getElementById('apply-btn').click(), 100);
+            }
         }
     }
 });

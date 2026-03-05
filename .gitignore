@@ -1,4 +1,4 @@
 backend/node_modules/
 backend/.env
 **/node_modules/
-**/.env
+## .env removed from ignore list
