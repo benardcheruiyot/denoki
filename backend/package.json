@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "main": "src/server.js",
+  "description": "MkopoExtra backend. ",
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
