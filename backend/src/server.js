@@ -198,7 +198,7 @@ app.get('/api/daraja_test_api', async (_req, res) => {
   }
 });
 
-app.post('/api/stk_initiate.js', async (req, res) => {
+app.post('/api/stk_initiate', async (req, res) => {
   const readiness = envReadiness();
   if (!readiness.ok) {
     return res.status(400).json({
@@ -333,7 +333,7 @@ app.post('/api/stk_initiate.js', async (req, res) => {
   }
 });
 
-app.post('/api/stk_status.js', async (req, res) => {
+app.post('/api/stk_status', async (req, res) => {
   const checkoutRequestId = String(req.body?.checkoutRequestId || '').trim();
   if (!checkoutRequestId) {
     return res.status(400).json({ status: 'FAILED', message: 'checkoutRequestId is required.' });

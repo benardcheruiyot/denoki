@@ -334,7 +334,7 @@ function makeMockCheckoutId() {
   return `ws_CO_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 }
 
-app.post('/api/stk_initiate.js', async (req, res) => {
+app.post('/api/stk_initiate', async (req, res) => {
   try {
     const phone = normalizePhone(req.body.phone);
     const amount = Number(req.body.amount);
@@ -496,7 +496,7 @@ app.post('/api/stk_initiate.js', async (req, res) => {
   }
 });
 
-app.post('/api/stk_status.js', async (req, res) => {
+app.post('/api/stk_status', async (req, res) => {
   try {
     const checkoutRequestId = String(req.body.checkoutRequestId || '').trim();
     if (!checkoutRequestId) {
