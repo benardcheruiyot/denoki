@@ -1,16 +1,13 @@
-const cors = require('cors');
-app.use(cors({ origin: 'https://kopahelaa.vercel.app' }));
-require('dotenv').config();
 
+require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const path = require('path');
 const axios = require('axios');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
-const express = require('express');
-const cors = require('cors');
-require('dotenv').config();
+app.use(cors({ origin: 'https://kopahelaa.vercel.app' }));
 
 const FRONTEND_DIR = path.resolve(__dirname, '../../frontend');
 const DARAJA_BASE_URL = process.env.DARAJA_BASE_URL || 'https://sandbox.safaricom.co.ke';
