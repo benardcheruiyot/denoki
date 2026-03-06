@@ -137,17 +137,32 @@ async function getAccessToken() {
   const auth = Buffer.from(`${key}:${secret}`).toString('base64');
 
   const url = `${DARAJA_BASE_URL}/oauth/v1/generate`;
-  const response = await axios.get(url, {
-    params: { grant_type: 'client_credentials' },
-    headers: { Authorization: `Basic ${auth}` },
-    timeout: 20000
-  });
+  try {
+    const response = await axios.get(url, {
+      params: { grant_type: 'client_credentials' },
+      headers: { Authorization: `Basic ${auth}` },
+      timeout: 20000
+    });
 
-  if (!response.data || !response.data.access_token) {
-    throw new Error('Failed to obtain Daraja access token.');
+    if (!response.data || !response.data.access_token) {
+      console.error('Daraja token error: No access_token in response', response.data);
+      throw new Error('Failed to obtain Daraja access token.');
+    }
+
+    return response.data.access_token;
+  } catch (error) {
+    if (error.response) {
+      // Log full error details from Safaricom
+      console.error('Daraja token error:', {
+        status: error.response.status,
+        data: error.response.data,
+        headers: error.response.headers
+      });
+    } else {
+      console.error('Daraja token error:', error.message);
+    }
+    throw new Error('Failed to obtain Daraja access token. See server logs for details.');
   }
-
-  return response.data.access_token;
 }
 
 function buildPassword(shortcode, passkey, timestamp) {
