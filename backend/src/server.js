@@ -1,3 +1,5 @@
+const cors = require('cors');
+app.use(cors({ origin: 'https://kopahelaa.vercel.app' }));
 require('dotenv').config();
 
 const express = require('express');
