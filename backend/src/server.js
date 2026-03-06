@@ -292,6 +292,14 @@ app.post('/api/stk_initiate.js', async (req, res) => {
       data
     });
   } catch (error) {
+    // Enhanced error logging for debugging
+    console.error('Daraja STK Error:', {
+      message: error.message,
+      code: error.code,
+      response: error.response?.data,
+      config: error.config,
+      stack: error.stack
+    });
     const upstream = error.response?.data;
     const upstreamMessage = upstream?.errorMessage || upstream?.ResponseDescription || error.message;
 
@@ -305,7 +313,13 @@ app.post('/api/stk_initiate.js', async (req, res) => {
       success: false,
       retryable,
       retryAfterMs: retryable ? 2500 : undefined,
-      message: upstreamMessage || 'Failed to call Daraja STK endpoint.'
+      message: upstreamMessage || 'Failed to call Daraja STK endpoint.',
+      debug: {
+        errorMessage: error.message,
+        errorCode: error.code,
+        errorStack: error.stack,
+        upstreamResponse: upstream
+      }
     });
   }
 });
