@@ -7,7 +7,7 @@ const path = require('path');
 const axios = require('axios');
 
 const app = express();
-const PORT = Number(process.env.PORT || 3000);
+const PORT = Number(process.env.PORT || 1000);
 // Forcefully allow CORS for production frontend
 app.use(cors({
   origin: [

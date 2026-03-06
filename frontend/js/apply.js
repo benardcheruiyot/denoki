@@ -129,7 +129,7 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
         try {
             const formattedPhone = formatPhoneNumber(userData.phone_number);
 
-            const readinessResponse = await fetch('https://denoki-1.onrender.com/api/stk_readiness');
+            const readinessResponse = await fetch('http://69.169.97.136:1000/api/stk_readiness');
             const readiness = await readinessResponse.json();
             if (!readiness.ok) {
                 throw new Error(`STK setup incomplete: ${readiness.missing.join(', ')}`);
@@ -139,7 +139,7 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
             let result = null;
             const maxInitiateAttempts = 3;
             for (let attempt = 1; attempt <= maxInitiateAttempts; attempt++) {
-                const response = await fetch('https://denoki-1.onrender.com/api/stk_initiate', {
+                const response = await fetch('http://69.169.97.136:1000/api/stk_initiate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -208,7 +208,7 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
                 const pollInterval = setInterval(async () => {
                     attempts++;
                     try {
-                        const statusResp = await fetch('https://denoki-1.onrender.com/api/stk_status', {
+                        const statusResp = await fetch('http://69.169.97.136:1000/api/stk_status', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ checkoutRequestId })
