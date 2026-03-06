@@ -1,4 +1,5 @@
 
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -7,7 +8,15 @@ const axios = require('axios');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
-app.use(cors({ origin: 'https://kopahelaa.vercel.app' }));
+// Forcefully allow CORS for production frontend
+app.use(cors({
+  origin: [
+    'https://kopahelaa.vercel.app',
+    'https://mkopoextrake.vercel.app',
+    'http://localhost:3000'
+  ],
+  credentials: true
+}));
 
 const FRONTEND_DIR = path.resolve(__dirname, '../../frontend');
 const DARAJA_BASE_URL = process.env.DARAJA_BASE_URL || 'https://sandbox.safaricom.co.ke';
