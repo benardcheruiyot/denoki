@@ -8,6 +8,10 @@ const axios = require('axios');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
+const express = require('express');
+const cors = require('cors');
+require('dotenv').config();
+
 const FRONTEND_DIR = path.resolve(__dirname, '../../frontend');
 const DARAJA_BASE_URL = process.env.DARAJA_BASE_URL || 'https://sandbox.safaricom.co.ke';
 const DARAJA_MOCK_STK = String(process.env.DARAJA_MOCK_STK || 'false').toLowerCase() === 'true';
