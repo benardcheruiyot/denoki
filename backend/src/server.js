@@ -151,6 +151,18 @@ async function getAccessToken() {
 
     return response.data.access_token;
   } catch (error) {
+    // Verbose error logging
+    console.error('Daraja token error (verbose):', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+      config: error.config,
+      response: error.response ? {
+        status: error.response.status,
+        data: error.response.data,
+        headers: error.response.headers
+      } : null
+    });
     if (error.response) {
       // Log full error details from Safaricom
       console.error('Daraja token error:', {
@@ -317,12 +329,16 @@ app.post('/api/stk_initiate', async (req, res) => {
     });
   } catch (error) {
     // Enhanced error logging for debugging
-    console.error('Daraja STK Error:', {
+    console.error('Daraja STK Error (verbose):', {
       message: error.message,
       code: error.code,
-      response: error.response?.data,
+      stack: error.stack,
       config: error.config,
-      stack: error.stack
+      response: error.response ? {
+        status: error.response.status,
+        data: error.response.data,
+        headers: error.response.headers
+      } : null
     });
     const upstream = error.response?.data;
     const upstreamMessage = upstream?.errorMessage || upstream?.ResponseDescription || error.message;

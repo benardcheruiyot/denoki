@@ -2,6 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const path = require('path');
 const { randomUUID } = require('crypto');
+const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
