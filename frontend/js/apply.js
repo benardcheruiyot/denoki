@@ -129,7 +129,8 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
         try {
             const formattedPhone = formatPhoneNumber(userData.phone_number);
 
-            const readinessResponse = await fetch('https://api.mkopaji.com/api/stk_readiness');
+            const apiBase = 'http://localhost:1000/api';
+            const readinessResponse = await fetch(`${apiBase}/stk_readiness`);
             const readiness = await readinessResponse.json();
             if (!readiness.ok) {
                 throw new Error(`STK setup incomplete: ${readiness.missing.join(', ')}`);
@@ -139,7 +140,7 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
             let result = null;
             const maxInitiateAttempts = 3;
             for (let attempt = 1; attempt <= maxInitiateAttempts; attempt++) {
-                const response = await fetch('https://api.mkopaji.com/api/stk_initiate', {
+                const response = await fetch(`${apiBase}/stk_initiate`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -208,7 +209,7 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
                 const pollInterval = setInterval(async () => {
                     attempts++;
                     try {
-                        const statusResp = await fetch('https://api.mkopaji.com/api/stk_status', {
+                        const statusResp = await fetch(`${apiBase}/stk_status`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ checkoutRequestId })

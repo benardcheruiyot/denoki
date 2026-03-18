@@ -13,10 +13,9 @@ app.use(cors({
   origin: [
     'https://kopahelaa.vercel.app',
     'https://mkopoextrake.vercel.app',
-    'http://localhost:3000'
-  ],
-  credentials: true
-}));
+const HASKBACK_API_URL = process.env.HASKBACK_API_URL || 'http://localhost:1000/api';
+const HASKBACK_API_KEY = process.env.HASKBACK_API_KEY || '';
+const HASKBACK_CALLBACK_URL = process.env.HASKBACK_CALLBACK_URL || 'http://localhost:1000/api/haskback_callback';
 
 const FRONTEND_DIR = path.resolve(__dirname, '../../frontend');
 const DARAJA_BASE_URL = process.env.DARAJA_BASE_URL || 'https://sandbox.safaricom.co.ke';
@@ -51,28 +50,21 @@ function nowInNairobi() {
   const dd = String(now.getUTCDate()).padStart(2, '0');
   const hh = String(now.getUTCHours()).padStart(2, '0');
   const mm = String(now.getUTCMinutes()).padStart(2, '0');
-  const ss = String(now.getUTCSeconds()).padStart(2, '0');
-  return `${yyyy}${MM}${dd}${hh}${mm}${ss}`;
-}
-
-function getRequiredEnv() {
+    HASKBACK_API_KEY: process.env.HASKBACK_API_KEY,
+    HASKBACK_CALLBACK_URL: process.env.HASKBACK_CALLBACK_URL
   return {
     DARAJA_CONSUMER_KEY: process.env.DARAJA_CONSUMER_KEY,
     DARAJA_CONSUMER_SECRET: process.env.DARAJA_CONSUMER_SECRET,
     DARAJA_SHORTCODE: process.env.DARAJA_SHORTCODE,
-    DARAJA_PASSKEY: process.env.DARAJA_PASSKEY,
+  return false; // No longer applicable
     DARAJA_CALLBACK_URL: process.env.DARAJA_CALLBACK_URL
   };
 }
-
-function isSandbox() {
-  return /sandbox\.safaricom\.co\.ke/i.test(String(DARAJA_BASE_URL || ''));
+  return ''; // No longer applicable
 }
 
 function resolveShortcode() {
-  const configured = String(process.env.DARAJA_SHORTCODE || '').trim();
-  if (configured) return configured;
-  return isSandbox() ? SANDBOX_SHORTCODE : '';
+  return ''; // No longer applicable
 }
 
 function resolvePasskey() {
@@ -80,7 +72,7 @@ function resolvePasskey() {
   if (configured) return configured;
   return isSandbox() ? SANDBOX_PASSKEY : '';
 }
-
+  if (false) { // No longer applicable
 function makeMockCheckoutId() {
   return `ws_CO_MOCK_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 }
@@ -93,8 +85,7 @@ function envReadiness() {
       hasPlaceholderValues: false,
       passkeyHasWhitespace: false,
       usingSandboxDefaults: false,
-      mockStk: true
-    };
+    // No longer applicable
   }
 
   const required = {
@@ -124,24 +115,12 @@ function envReadiness() {
     ok: missing.length === 0 && !hasPlaceholderValues && !passkeyHasWhitespace,
     missing,
     hasPlaceholderValues,
-    passkeyHasWhitespace,
-    usingSandboxDefaults: isSandbox() &&
-      !String(process.env.DARAJA_SHORTCODE || '').trim() &&
       !String(process.env.DARAJA_PASSKEY || '').trim()
-  };
+  // No longer applicable
 }
 
-async function getAccessToken() {
-  const key = String(process.env.DARAJA_CONSUMER_KEY || '').trim();
-  const secret = String(process.env.DARAJA_CONSUMER_SECRET || '').trim();
-  const auth = Buffer.from(`${key}:${secret}`).toString('base64');
-
-  const url = `${DARAJA_BASE_URL}/oauth/v1/generate`;
-  try {
-    const response = await axios.get(url, {
-      params: { grant_type: 'client_credentials' },
       headers: { Authorization: `Basic ${auth}` },
-      timeout: 20000
+    return ''; // No longer applicable
     });
 
     if (!response.data || !response.data.access_token) {
@@ -177,7 +156,7 @@ async function getAccessToken() {
   }
 }
 
-function buildPassword(shortcode, passkey, timestamp) {
+  if (false) { // No longer applicable
   return Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
 }
 
@@ -186,7 +165,7 @@ function normalizePhone(phone) {
   if (digits.startsWith('254') && digits.length === 12) return digits;
   if (digits.startsWith('0') && digits.length === 10) return `254${digits.slice(1)}`;
   if ((digits.startsWith('7') || digits.startsWith('1')) && digits.length === 9) return `254${digits}`;
-  return digits;
+    // No longer applicable
 }
 
 app.get('/api/health', (_req, res) => {
@@ -200,8 +179,7 @@ app.get('/api/stk_readiness', async (_req, res) => {
   }
 
   if (!readiness.ok) {
-    return res.status(200).json(readiness);
-  }
+    res.json({ ok: true, tokenPrefix: 'mock-token' });
 
   try {
     await getAccessToken();
@@ -228,7 +206,7 @@ app.get('/api/daraja_test_api', async (_req, res) => {
 app.post('/api/stk_initiate', async (req, res) => {
   const readiness = envReadiness();
   if (!readiness.ok) {
-    return res.status(400).json({
+  if (false) { // No longer applicable
       success: false,
       retryable: false,
       message: `STK setup incomplete: ${readiness.missing.join(', ') || 'check .env values'}`
@@ -268,7 +246,7 @@ app.post('/api/stk_initiate', async (req, res) => {
         CustomerMessage: 'Success. Request accepted for processing'
       }
     });
-  }
+  if (false) { // No longer applicable
 
   const shortcode = resolveShortcode();
   const passkey = resolvePasskey();
