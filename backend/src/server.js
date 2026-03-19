@@ -58,16 +58,18 @@ app.post('/api/haskback_push', async (req, res) => {
 		return res.status(400).json({ success: false, message: 'partyB (till number) is required.' });
 	}
 	try {
+		const payload = {
+			api_key: HASKBACK_API_KEY,
+			account_id: process.env.HASKBACK_ACCOUNT_ID,
+			amount,
+			msisdn,
+			reference,
+			partyB
+		};
+		console.log('Sending to Hashback API:', payload);
 		const response = await axios.post(
 			`${HASKBACK_API_URL}/initiatestk`,
-			{
-				api_key: HASKBACK_API_KEY,
-				account_id: process.env.HASKBACK_ACCOUNT_ID,
-				amount,
-				msisdn,
-				reference,
-				partyB
-			}
+			payload
 		);
 		// Store transaction for status tracking
 		const txId = response.data?.checkout_id || response.data?.transaction_id || response.data?.id || `${msisdn}_${Date.now()}`;
@@ -77,6 +79,9 @@ app.post('/api/haskback_push', async (req, res) => {
 		res.json({ success: true, data: response.data, txId });
 	} catch (error) {
 		console.error('Haskback STK Push Error:', error);
+		if (error.response && error.response.data) {
+			console.error('Hashback API error response:', error.response.data);
+		}
 		res.status(500).json({ success: false, error: error.response?.data || error.message });
 	}
 });
