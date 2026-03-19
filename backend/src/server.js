@@ -1,4 +1,15 @@
+console.log('Starting server...');
 
+// ...existing code...
+// (Move this to the very end of the file)
+
+// Log all uncaught exceptions and unhandled promise rejections
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
 
 require('dotenv').config();
 const express = require('express');
@@ -8,26 +19,35 @@ const axios = require('axios');
 
 const app = express();
 const PORT = Number(process.env.PORT || 1000);
-// Forcefully allow CORS for production frontend
+
+// Log all incoming requests
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - Body:`, req.body);
+  next();
+});
+
+// Test endpoint to verify backend is reachable
+app.get('/api/test', (req, res) => {
+  res.json({ success: true, message: 'Backend is reachable.' });
+});
+
 app.use(cors({
-  origin: [
-    'https://kopahelaa.vercel.app',
-    'https://mkopoextrake.vercel.app',
+  origin: '*', // Allow all origins for development; restrict in production
+  credentials: true
+}));
+
 const HASKBACK_API_URL = process.env.HASKBACK_API_URL || 'http://localhost:1000/api';
 const HASKBACK_API_KEY = process.env.HASKBACK_API_KEY || '';
 const HASKBACK_CALLBACK_URL = process.env.HASKBACK_CALLBACK_URL || 'http://localhost:1000/api/haskback_callback';
 
 const FRONTEND_DIR = path.resolve(__dirname, '../../frontend');
-const DARAJA_BASE_URL = process.env.DARAJA_BASE_URL || 'https://sandbox.safaricom.co.ke';
-const DARAJA_MOCK_STK = String(process.env.DARAJA_MOCK_STK || 'false').toLowerCase() === 'true';
-const SANDBOX_SHORTCODE = '174379';
-const SANDBOX_PASSKEY = 'bfb279f9aa9bdbcf158e97ddf9f1b5f4b6b17f81e8f8f52ce8f86f4e9f0f5f6d';
+// Daraja/M-Pesa variables removed
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false }));
 
-// In-memory transaction tracker for pending/completed STK checks.
+// In-memory transaction tracker for Haskback STK push
 const txStore = new Map();
 const STORE_TTL_MS = 1000 * 60 * 60 * 6;
 
@@ -42,272 +62,39 @@ function cleanupTxStore() {
 
 setInterval(cleanupTxStore, 5 * 60 * 1000).unref();
 
-function nowInNairobi() {
-  // Daraja expects East Africa time in yyyyMMddHHmmss format.
-  const now = new Date(Date.now() + 3 * 60 * 60 * 1000);
-  const yyyy = now.getUTCFullYear();
-  const MM = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(now.getUTCDate()).padStart(2, '0');
-  const hh = String(now.getUTCHours()).padStart(2, '0');
-  const mm = String(now.getUTCMinutes()).padStart(2, '0');
-    HASKBACK_API_KEY: process.env.HASKBACK_API_KEY,
-    HASKBACK_CALLBACK_URL: process.env.HASKBACK_CALLBACK_URL
-  return {
-    DARAJA_CONSUMER_KEY: process.env.DARAJA_CONSUMER_KEY,
-    DARAJA_CONSUMER_SECRET: process.env.DARAJA_CONSUMER_SECRET,
-    DARAJA_SHORTCODE: process.env.DARAJA_SHORTCODE,
-  return false; // No longer applicable
-    DARAJA_CALLBACK_URL: process.env.DARAJA_CALLBACK_URL
-  };
-}
-  return ''; // No longer applicable
-}
-
-function resolveShortcode() {
-  return ''; // No longer applicable
-}
-
-function resolvePasskey() {
-  const configured = String(process.env.DARAJA_PASSKEY || '').trim();
-  if (configured) return configured;
-  return isSandbox() ? SANDBOX_PASSKEY : '';
-}
-  if (false) { // No longer applicable
-function makeMockCheckoutId() {
-  return `ws_CO_MOCK_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
-}
-
-function envReadiness() {
-  if (DARAJA_MOCK_STK) {
-    return {
-      ok: true,
-      missing: [],
-      hasPlaceholderValues: false,
-      passkeyHasWhitespace: false,
-      usingSandboxDefaults: false,
-    // No longer applicable
+// Haskback STK Push Initiation Endpoint
+app.post('/api/haskback_push', async (req, res) => {
+  let { msisdn, amount, reference } = req.body;
+  if (!msisdn || !amount || !reference) {
+    return res.status(400).json({ success: false, message: 'msisdn, amount, and reference are required.' });
   }
-
-  const required = {
-    ...getRequiredEnv(),
-    DARAJA_SHORTCODE: resolveShortcode(),
-    DARAJA_PASSKEY: resolvePasskey()
-  };
-  const missing = Object.entries(required)
-    .filter(([, value]) => !String(value || '').trim())
-    .map(([key]) => key);
-
-  const placeholders = [
-    'your_consumer_key',
-    'your_consumer_secret',
-    'your_shortcode_or_till_number',
-    'your_lipa_na_mpesa_online_passkey',
-    'https://replace-with-your-public-url/api/stk_callback'
-  ];
-
-  const hasPlaceholderValues = Object.values(required).some((value) =>
-    placeholders.includes(String(value || '').trim())
-  );
-
-  const passkeyHasWhitespace = /\s/.test(String(required.DARAJA_PASSKEY || ''));
-
-  return {
-    ok: missing.length === 0 && !hasPlaceholderValues && !passkeyHasWhitespace,
-    missing,
-    hasPlaceholderValues,
-      !String(process.env.DARAJA_PASSKEY || '').trim()
-  // No longer applicable
-}
-
-      headers: { Authorization: `Basic ${auth}` },
-    return ''; // No longer applicable
-    });
-
-    if (!response.data || !response.data.access_token) {
-      console.error('Daraja token error: No access_token in response', response.data);
-      throw new Error('Failed to obtain Daraja access token.');
-    }
-
-    return response.data.access_token;
-  } catch (error) {
-    // Verbose error logging
-    console.error('Daraja token error (verbose):', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack,
-      config: error.config,
-      response: error.response ? {
-        status: error.response.status,
-        data: error.response.data,
-        headers: error.response.headers
-      } : null
-    });
-    if (error.response) {
-      // Log full error details from Safaricom
-      console.error('Daraja token error:', {
-        status: error.response.status,
-        data: error.response.data,
-        headers: error.response.headers
-      });
-    } else {
-      console.error('Daraja token error:', error.message);
-    }
-    throw new Error('Failed to obtain Daraja access token. See server logs for details.');
+  // Force msisdn to 254XXXXXXXXX format
+  msisdn = String(msisdn).replace(/\D/g, '');
+  if (msisdn.startsWith('0')) {
+    msisdn = '254' + msisdn.substring(1);
+  } else if (msisdn.startsWith('7') || msisdn.startsWith('1')) {
+    msisdn = '254' + msisdn;
+  } else if (!msisdn.startsWith('254')) {
+    msisdn = '254' + msisdn;
   }
-}
-
-  if (false) { // No longer applicable
-  return Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
-}
-
-function normalizePhone(phone) {
-  const digits = String(phone || '').replace(/\D/g, '');
-  if (digits.startsWith('254') && digits.length === 12) return digits;
-  if (digits.startsWith('0') && digits.length === 10) return `254${digits.slice(1)}`;
-  if ((digits.startsWith('7') || digits.startsWith('1')) && digits.length === 9) return `254${digits}`;
-    // No longer applicable
-}
-
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'mkopoextrake-backend', timestamp: new Date().toISOString() });
-});
-
-app.get('/api/stk_readiness', async (_req, res) => {
-  const readiness = envReadiness();
-  if (DARAJA_MOCK_STK) {
-    return res.status(200).json({ ...readiness, darajaAuth: 'skipped-mock' });
-  }
-
-  if (!readiness.ok) {
-    res.json({ ok: true, tokenPrefix: 'mock-token' });
-
   try {
-    await getAccessToken();
-    return res.status(200).json({ ...readiness, darajaAuth: 'ok' });
-  } catch (error) {
-    return res.status(200).json({
-      ...readiness,
-      ok: false,
-      darajaAuth: 'failed',
-      message: 'Environment variables are set but Daraja auth failed. Verify key/secret pair.'
-    });
-  }
-});
-
-app.get('/api/daraja_test_api', async (_req, res) => {
-  try {
-    const token = await getAccessToken();
-    res.json({ ok: true, tokenPrefix: token.slice(0, 12) });
-  } catch (error) {
-    res.status(502).json({ ok: false, message: error.message });
-  }
-});
-
-app.post('/api/stk_initiate', async (req, res) => {
-  const readiness = envReadiness();
-  if (!readiness.ok) {
-  if (false) { // No longer applicable
-      success: false,
-      retryable: false,
-      message: `STK setup incomplete: ${readiness.missing.join(', ') || 'check .env values'}`
-    });
-  }
-
-  const amount = Number(req.body?.amount);
-  const phone = normalizePhone(req.body?.phone);
-
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return res.status(400).json({ success: false, retryable: false, message: 'Amount must be greater than 0.' });
-  }
-
-  if (!/^254\d{9}$/.test(phone)) {
-    return res.status(400).json({ success: false, retryable: false, message: 'Phone must be in 254XXXXXXXXX format.' });
-  }
-
-  if (DARAJA_MOCK_STK) {
-    const checkoutId = makeMockCheckoutId();
-    const merchantRequestId = `mock_${Date.now()}`;
-    txStore.set(checkoutId, {
-      status: 'PENDING',
-      message: 'Mock STK initiated. Awaiting confirmation.',
-      updatedAt: Date.now(),
-      pollCount: 0,
-      amount: Math.round(amount),
-      phone
-    });
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        MerchantRequestID: merchantRequestId,
-        CheckoutRequestID: checkoutId,
-        ResponseCode: '0',
-        ResponseDescription: 'Success. Request accepted for processing',
-        CustomerMessage: 'Success. Request accepted for processing'
+    const response = await axios.post(
+      `${HASKBACK_API_URL}/initiatestk`,
+      {
+        api_key: HASKBACK_API_KEY,
+        account_id: process.env.HASKBACK_ACCOUNT_ID,
+        amount,
+        msisdn,
+        reference
       }
-    });
-  if (false) { // No longer applicable
-
-  const shortcode = resolveShortcode();
-  const passkey = resolvePasskey();
-  const callbackUrl = String(process.env.DARAJA_CALLBACK_URL || '').trim();
-  const accountReference = String(process.env.DARAJA_ACCOUNT_REFERENCE || 'MkopoExtra').trim();
-  const transactionDesc = String(process.env.DARAJA_TRANSACTION_DESC || 'Loan processing fee').trim();
-  // Always use Buy Goods (till) integration
-  const transactionType = 'CustomerBuyGoodsOnline';
-
-  const timestamp = nowInNairobi();
-  const password = buildPassword(shortcode, passkey, timestamp);
-
-  try {
-    const token = await getAccessToken();
-    const url = `${DARAJA_BASE_URL}/mpesa/stkpush/v1/processrequest`;
-    const payload = {
-      BusinessShortCode: shortcode,
-      Password: password,
-      Timestamp: timestamp,
-      TransactionType: transactionType,
-      Amount: Math.round(amount),
-      PartyA: phone,
-      // Always use till number for PartyB
-      PartyB: String(process.env.DARAJA_PARTYB).trim(),
-      PhoneNumber: phone,
-      CallBackURL: callbackUrl,
-      AccountReference: accountReference,
-      TransactionDesc: transactionDesc
-    };
-
-    const response = await axios.post(url, payload, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 70000
-    });
-
-    const data = response.data || {};
-    const checkoutId = data.CheckoutRequestID;
-
-    if (data.ResponseCode === '0' && checkoutId) {
-      txStore.set(checkoutId, {
-        status: 'PENDING',
-        message: data.CustomerMessage || 'STK push sent. Awaiting PIN confirmation.',
-        updatedAt: Date.now(),
-        merchantRequestId: data.MerchantRequestID
-      });
-
-      return res.status(200).json({ success: true, data });
-    }
-
-    return res.status(400).json({
-      success: false,
-      retryable: false,
-      message: data.ResponseDescription || 'STK request failed.',
-      data
-    });
+    );
+    // Store transaction for status tracking
+    const txId = response.data?.checkout_id || response.data?.transaction_id || response.data?.id || `${msisdn}_${Date.now()}`;
+    txStore.set(txId, { status: 'PENDING', msisdn, amount, createdAt: Date.now() });
+    res.json({ success: true, data: response.data, txId });
   } catch (error) {
     // Enhanced error logging for debugging
-    console.error('Daraja STK Error (verbose):', {
+    console.error('Haskback STK Push Error:', {
       message: error.message,
       code: error.code,
       stack: error.stack,
@@ -318,128 +105,32 @@ app.post('/api/stk_initiate', async (req, res) => {
         headers: error.response.headers
       } : null
     });
-    const upstream = error.response?.data;
-    const upstreamMessage = upstream?.errorMessage || upstream?.ResponseDescription || error.message;
-
-    // Mark transient upstream/network issues as retryable for frontend backoff loop.
-    const retryable =
-      error.code === 'ECONNABORTED' ||
-      error.code === 'ECONNRESET' ||
-      (Number(error.response?.status || 0) >= 500);
-
-    return res.status(502).json({
-      success: false,
-      retryable,
-      retryAfterMs: retryable ? 2500 : undefined,
-      message: upstreamMessage || 'Failed to call Daraja STK endpoint.',
-      debug: {
-        errorMessage: error.message,
-        errorCode: error.code,
-        errorStack: error.stack,
-        upstreamResponse: upstream
-      }
-    });
+    res.status(500).json({ success: false, error: error.response?.data || error.message });
   }
 });
 
-app.post('/api/stk_status', async (req, res) => {
-  const checkoutRequestId = String(req.body?.checkoutRequestId || '').trim();
-  if (!checkoutRequestId) {
-    return res.status(400).json({ status: 'FAILED', message: 'checkoutRequestId is required.' });
-  }
-
-  const cached = txStore.get(checkoutRequestId);
-
-  if (DARAJA_MOCK_STK) {
-    if (!cached) {
-      return res.status(200).json({ status: 'PENDING', message: 'Mock transaction still processing.' });
-    }
-
-    const nextPoll = Number(cached.pollCount || 0) + 1;
-    const status = nextPoll >= 2 ? 'COMPLETED' : 'PENDING';
-    const message = status === 'COMPLETED'
-      ? 'The service request is processed successfully.'
-      : 'Mock transaction still processing.';
-
-    txStore.set(checkoutRequestId, {
-      ...cached,
-      pollCount: nextPoll,
-      status,
-      message,
-      updatedAt: Date.now()
-    });
-
-    return res.status(200).json({ status, message });
-  }
-
-  if (cached && (cached.status === 'COMPLETED' || cached.status === 'FAILED')) {
-    return res.status(200).json({ status: cached.status, message: cached.message });
-  }
-
-  try {
-    const shortcode = resolveShortcode();
-    const passkey = resolvePasskey();
-    const timestamp = nowInNairobi();
-    const password = buildPassword(shortcode, passkey, timestamp);
-    const token = await getAccessToken();
-
-    const url = `${DARAJA_BASE_URL}/mpesa/stkpushquery/v1/query`;
-    const payload = {
-      BusinessShortCode: shortcode,
-      Password: password,
-      Timestamp: timestamp,
-      CheckoutRequestID: checkoutRequestId
-    };
-
-    const response = await axios.post(url, payload, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 30000
-    });
-
-    const data = response.data || {};
-    const resultCode = Number(data.ResultCode);
-
-    let status = 'PENDING';
-    let message = data.ResultDesc || 'Payment is still pending.';
-
-    if (Number.isFinite(resultCode)) {
-      if (resultCode === 0) {
-        status = 'COMPLETED';
-      } else {
-        status = 'FAILED';
-      }
-    }
-
-    txStore.set(checkoutRequestId, { status, message, updatedAt: Date.now() });
-    return res.status(200).json({ status, message, result: data });
-  } catch (error) {
-    const upstream = error.response?.data;
-    const message = upstream?.errorMessage || upstream?.ResponseDescription || error.message;
-
-    // Keep polling for transient errors instead of failing immediately in UI.
-    return res.status(200).json({ status: 'PENDING', message: `Status check pending: ${message}` });
-  }
+// Haskback STK Push Status Endpoint
+app.post('/api/haskback_status', (req, res) => {
+  const { txId } = req.body;
+  if (!txId) return res.status(400).json({ success: false, message: 'txId is required.' });
+  const tx = txStore.get(txId);
+  if (!tx) return res.status(404).json({ success: false, message: 'Transaction not found.' });
+  res.json({ success: true, status: tx.status, tx });
 });
 
-app.post('/api/stk_callback', (req, res) => {
-  const callback = req.body?.Body?.stkCallback;
-  const checkoutId = String(callback?.CheckoutRequestID || '').trim();
-  const resultCode = Number(callback?.ResultCode);
-  const resultDesc = String(callback?.ResultDesc || '');
-
-  if (checkoutId) {
-    const status = resultCode === 0 ? 'COMPLETED' : 'FAILED';
-    txStore.set(checkoutId, {
-      status,
-      message: resultDesc || (status === 'COMPLETED' ? 'Payment completed.' : 'Payment failed.'),
-      updatedAt: Date.now()
-    });
+// Haskback Callback Endpoint
+app.post('/api/haskback_callback', (req, res) => {
+  // Example: { transaction_id, status, ... }
+  const { transaction_id, status } = req.body;
+  if (transaction_id && status) {
+    const tx = txStore.get(transaction_id);
+    if (tx) {
+      tx.status = status;
+      tx.updatedAt = Date.now();
+      txStore.set(transaction_id, tx);
+    }
   }
-
-  res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
+  res.status(200).json({ received: true });
 });
 
 app.use(express.static(FRONTEND_DIR));

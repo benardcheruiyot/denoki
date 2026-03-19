@@ -110,7 +110,7 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
     // 2. Process Payment if Confirmed
     if (confirmResult.isConfirmed) {
         Swal.fire({
-            title: 'Sending M-Pesa Prompt',
+            title: 'Sending Payment Request',
             html: `
                 <div class="modern-processing">
                     <div class="modern-spinner"></div>
@@ -128,60 +128,23 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
 
         try {
             const formattedPhone = formatPhoneNumber(userData.phone_number);
-
             const apiBase = 'http://localhost:1000/api';
-            const readinessResponse = await fetch(`${apiBase}/stk_readiness`);
-            const readiness = await readinessResponse.json();
-            if (!readiness.ok) {
-                throw new Error(`STK setup incomplete: ${readiness.missing.join(', ')}`);
-            }
 
-            // Call backend with retry/backoff for transient Daraja outages.
-            let result = null;
-            const maxInitiateAttempts = 3;
-            for (let attempt = 1; attempt <= maxInitiateAttempts; attempt++) {
-                const response = await fetch(`${apiBase}/stk_initiate`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        phone: formattedPhone,
-                        amount: selectedLoan.fee
-                    })
-                });
-
-                try {
-                    result = await response.json();
-                } catch (_err) {
-                    throw new Error('Backend returned an invalid response.');
-                }
-
-                if (response.ok) {
-                    break;
-                }
-
-                const retryable = Boolean(result?.retryable);
-                const canRetry = retryable && attempt < maxInitiateAttempts;
-                if (!canRetry) {
-                    throw new Error(result?.message || 'STK initiation failed.');
-                }
-
-                const retryDelay = Number(result?.retryAfterMs || 2500) + ((attempt - 1) * 1500);
-                Swal.update({
-                    html: `
-                        <div class="modern-processing">
-                            <div class="modern-spinner"></div>
-                            <div class="modern-processing-title">Retrying M-Pesa Prompt (${attempt}/${maxInitiateAttempts - 1})</div>
-                            <div class="modern-processing-note">Daraja is temporarily unavailable. Retrying in ${Math.ceil(retryDelay / 1000)}s...</div>
-                        </div>
-                    `
-                });
-                await sleep(retryDelay);
-            }
-
-            if (result.success) {
-                const checkoutRequestId = result.data.CheckoutRequestID;
+            // Call Haskback backend endpoint with correct fields
+            const response = await fetch(`${apiBase}/haskback_push`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    msisdn: formattedPhone,
+                    amount: selectedLoan.fee,
+                    reference: userData.name || 'LoanAppUser'
+                })
+            });
+            const result = await response.json();
+            if (response.ok && result.success) {
+                const txId = result.txId;
 
                 // 3. Show Polling UI
                 Swal.fire({
@@ -189,7 +152,7 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
                     html: `
                         <div class="modern-processing">
                             <div class="modern-spinner"></div>
-                            <div class="modern-processing-title">Check Your M-Pesa Prompt</div>
+                            <div class="modern-processing-title">Check Your Phone</div>
                             <div class="modern-processing-note">Enter your PIN to pay <strong>${formatMoney(selectedLoan.fee)}</strong>.</div>
                             <div class="modern-processing-phone">${formattedPhone}</div>
                         </div>
@@ -205,24 +168,20 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
                 // 4. Poll for Status
                 let attempts = 0;
                 const maxAttempts = 20; // 20 * 3s = 60 seconds timeout
-
                 const pollInterval = setInterval(async () => {
                     attempts++;
                     try {
-                        const statusResp = await fetch(`${apiBase}/stk_status`, {
+                        const statusResp = await fetch(`${apiBase}/haskback_status`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ checkoutRequestId })
+                            body: JSON.stringify({ txId })
                         });
                         const statusResult = await statusResp.json();
 
                         if (statusResult.status === 'COMPLETED') {
                             clearInterval(pollInterval);
-
-                            // Set secure flag
                             sessionStorage.setItem('payment_status', 'completed');
                             sessionStorage.setItem('payment_time', new Date().toISOString());
-
                             Swal.fire({
                                 icon: 'success',
                                 title: 'Payment Successful!',
@@ -269,25 +228,15 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
                         // Don't stop polling on network error, just wait for next tick
                     }
                 }, 3000);
-
             } else {
                 throw new Error(result.message || 'Failed to initiate payment');
             }
         } catch (error) {
             console.error('Payment error:', error);
-            const lowerMsg = String(error.message || '').toLowerCase();
-            const helpText = lowerMsg.includes('wrong credentials')
-                ? 'Daraja credentials mismatch: verify shortcode and Lipa na M-Pesa passkey.'
-                : lowerMsg.includes('agent number and store number entered do not match')
-                ? 'BuyGoods profile mismatch: ensure shortcode and passkey are from the same till/store profile in Daraja.'
-                : 'Daraja may be slow or unavailable. Wait a moment and try again.';
             const retryChoice = await Swal.fire({
                 title: 'Payment Failed',
                 html: `
                     <p style="font-size: 0.9rem;">${error.message || 'Unable to process payment. Please try again.'}</p>
-                    <p style="font-size: 0.8rem; color: #666; margin-top: 10px;">
-                        ${helpText}
-                    </p>
                 `,
                 icon: 'error',
                 showCancelButton: true,
