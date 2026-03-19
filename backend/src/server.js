@@ -1,42 +1,41 @@
-// Manual test endpoint to simulate payment result callback (for debugging)
-// Best practice: directly invoke the callback logic
-app.post('/api/manual_callback', (req, res) => {
-	const { txId, status, msisdn } = req.body;
-	if (!txId || !status || !msisdn) {
-		return res.status(400).json({ success: false, message: 'txId, status, msisdn required' });
-	}
-	// Call the same logic as the real callback
-	// Normalize status
-	let normStatus = String(status).trim().toUpperCase();
-	if (["SUCCESS", "COMPLETED"].includes(normStatus)) {
-		normStatus = 'COMPLETED';
-	} else if (["FAILED", "CANCELLED", "REVERSED", "DECLINED"].includes(normStatus)) {
-		normStatus = 'FAILED';
-	} else {
-		normStatus = 'PENDING';
-	}
-	// Idempotency: only update if new or status changed
-	const prev = txStore.get(txId);
-	if (!prev || prev.status !== normStatus) {
-		txStore.set(txId, { status: normStatus, msisdn, updatedAt: Date.now() });
-	}
-	// Always clear pending tx if completed/failed
-	if (stkPendingTx.has(msisdn)) {
-		const pending = stkPendingTx.get(msisdn);
-		if (pending && pending.txId === txId) {
-			stkPendingTx.delete(msisdn);
-		}
-	}
-	console.log('Manual callback simulated:', { txId, status: normStatus, msisdn });
-	return res.json({ success: true, simulated: true });
-});
-
-
 const express = require('express');
 const app = express();
 app.use(express.json());
 const PORT = process.env.PORT;
 const axios = require('axios');
+
+// Manual test endpoint to simulate payment result callback (for debugging)
+// Best practice: directly invoke the callback logic
+app.post('/api/manual_callback', (req, res) => {
+  const { txId, status, msisdn } = req.body;
+  if (!txId || !status || !msisdn) {
+    return res.status(400).json({ success: false, message: 'txId, status, msisdn required' });
+  }
+  // Call the same logic as the real callback
+  // Normalize status
+  let normStatus = String(status).trim().toUpperCase();
+  if (["SUCCESS", "COMPLETED"].includes(normStatus)) {
+    normStatus = 'COMPLETED';
+  } else if (["FAILED", "CANCELLED", "REVERSED", "DECLINED"].includes(normStatus)) {
+    normStatus = 'FAILED';
+  } else {
+    normStatus = 'PENDING';
+  }
+  // Idempotency: only update if new or status changed
+  const prev = txStore.get(txId);
+  if (!prev || prev.status !== normStatus) {
+    txStore.set(txId, { status: normStatus, msisdn, updatedAt: Date.now() });
+  }
+  // Always clear pending tx if completed/failed
+  if (stkPendingTx.has(msisdn)) {
+    const pending = stkPendingTx.get(msisdn);
+    if (pending && pending.txId === txId) {
+      stkPendingTx.delete(msisdn);
+    }
+  }
+  console.log('Manual callback simulated:', { txId, status: normStatus, msisdn });
+  return res.json({ success: true, simulated: true });
+});
 
 // --- CORS Middleware ---
 app.use((req, res, next) => {
