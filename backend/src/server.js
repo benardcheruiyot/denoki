@@ -1,4 +1,6 @@
-console.log('Starting server...');
+
+try {
+  console.log('Starting server...');
 
 // ...existing code...
 // (Move this to the very end of the file)
