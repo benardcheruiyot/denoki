@@ -31,17 +31,43 @@ app.use((req, res, next) => {
 app.get('/api/health', (req, res) => res.send('ok'));
 
 // Load environment variables
-const HASKBACK_API_KEY = process.env.HASKBACK_API_KEY;
-const HASKBACK_API_URL = process.env.HASKBACK_API_URL;
-const HASKBACK_PARTYB = process.env.HASKBACK_PARTYB;
-const HASKBACK_ACCOUNT_ID = process.env.HASKBACK_ACCOUNT_ID;
-const HASKBACK_CALLBACK_URL = process.env.HASKBACK_CALLBACK_URL;
-const HASKBACK_ACCOUNT_REFERENCE = process.env.HASKBACK_ACCOUNT_REFERENCE;
-const HASKBACK_TRANSACTION_DESC = process.env.HASKBACK_TRANSACTION_DESC;
+const trimEnv = (v) => typeof v === 'string' ? v.trim() : v;
+const HASKBACK_API_KEY = trimEnv(process.env.HASKBACK_API_KEY);
+const HASKBACK_API_URL = trimEnv(process.env.HASKBACK_API_URL);
+const HASKBACK_PARTYB = trimEnv(process.env.HASKBACK_PARTYB);
+const HASKBACK_ACCOUNT_ID = trimEnv(process.env.HASKBACK_ACCOUNT_ID);
+const HASKBACK_CALLBACK_URL = trimEnv(process.env.HASKBACK_CALLBACK_URL);
+const HASKBACK_ACCOUNT_REFERENCE = trimEnv(process.env.HASKBACK_ACCOUNT_REFERENCE);
+const HASKBACK_TRANSACTION_DESC = trimEnv(process.env.HASKBACK_TRANSACTION_DESC);
 
 app.post('/api/haskback_push', async (req, res) => {
 	console.log('Received /api/haskback_push:', req.body);
 	let { msisdn, amount, reference, partyB } = req.body;
+	// Validate required fields
+	if (!msisdn || !amount || !reference) {
+		console.error('Missing required fields:', req.body);
+		return res.status(400).json({ success: false, message: 'msisdn, amount, and reference are required.' });
+	}
+	// Use partyB from request, else from env
+	partyB = partyB || HASKBACK_PARTYB;
+	// Validate all Hashback fields
+	const requiredFields = {
+		api_key: HASKBACK_API_KEY,
+		account_id: HASKBACK_ACCOUNT_ID,
+		amount,
+		msisdn,
+		reference,
+		partyB,
+		callback_url: HASKBACK_CALLBACK_URL,
+		account_reference: HASKBACK_ACCOUNT_REFERENCE,
+		transaction_desc: HASKBACK_TRANSACTION_DESC
+	};
+	for (const [k, v] of Object.entries(requiredFields)) {
+		if (!v || typeof v === 'string' && v.trim() === '') {
+			console.error(`Missing or empty field: ${k}`);
+			return res.status(400).json({ success: false, message: `Missing or empty field: ${k}` });
+		}
+	}
 	if (!msisdn || !amount || !reference) {
 		console.error('Missing required fields:', req.body);
 		return res.status(400).json({ success: false, message: 'msisdn, amount, and reference are required.' });
@@ -62,17 +88,7 @@ app.post('/api/haskback_push', async (req, res) => {
 		return res.status(400).json({ success: false, message: 'partyB (till number) is required.' });
 	}
 	try {
-		const payload = {
-			api_key: HASKBACK_API_KEY,
-			account_id: HASKBACK_ACCOUNT_ID,
-			amount,
-			msisdn,
-			reference,
-			partyB,
-			callback_url: HASKBACK_CALLBACK_URL,
-			account_reference: HASKBACK_ACCOUNT_REFERENCE,
-			transaction_desc: HASKBACK_TRANSACTION_DESC
-		};
+		const payload = requiredFields;
 		console.log('Sending to Hashback API:', payload);
 		const response = await axios.post(
 			`${HASKBACK_API_URL}/initiatestk`,
