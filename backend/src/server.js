@@ -26,6 +26,12 @@ app.use((req, res, next) => {
   next();
 });
 
+
+// Health check endpoint for Render and monitoring
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
+
 // Test endpoint to verify backend is reachable
 app.get('/api/test', (req, res) => {
   res.json({ success: true, message: 'Backend is reachable.' });
