@@ -34,6 +34,10 @@ app.get('/api/health', (req, res) => res.send('ok'));
 const HASKBACK_API_KEY = process.env.HASKBACK_API_KEY;
 const HASKBACK_API_URL = process.env.HASKBACK_API_URL;
 const HASKBACK_PARTYB = process.env.HASKBACK_PARTYB;
+const HASKBACK_ACCOUNT_ID = process.env.HASKBACK_ACCOUNT_ID;
+const HASKBACK_CALLBACK_URL = process.env.HASKBACK_CALLBACK_URL;
+const HASKBACK_ACCOUNT_REFERENCE = process.env.HASKBACK_ACCOUNT_REFERENCE;
+const HASKBACK_TRANSACTION_DESC = process.env.HASKBACK_TRANSACTION_DESC;
 
 app.post('/api/haskback_push', async (req, res) => {
 	console.log('Received /api/haskback_push:', req.body);
@@ -60,11 +64,14 @@ app.post('/api/haskback_push', async (req, res) => {
 	try {
 		const payload = {
 			api_key: HASKBACK_API_KEY,
-			account_id: process.env.HASKBACK_ACCOUNT_ID,
+			account_id: HASKBACK_ACCOUNT_ID,
 			amount,
 			msisdn,
 			reference,
-			partyB
+			partyB,
+			callback_url: HASKBACK_CALLBACK_URL,
+			account_reference: HASKBACK_ACCOUNT_REFERENCE,
+			transaction_desc: HASKBACK_TRANSACTION_DESC
 		};
 		console.log('Sending to Hashback API:', payload);
 		const response = await axios.post(
