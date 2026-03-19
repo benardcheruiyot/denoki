@@ -13,7 +13,8 @@ app.use((req, res, next) => {
 		'http://localhost:3000',
 		'https://denoki-3.onrender.com',
 		'https://denoki.vercel.app',
-		'https://www.denoki.vercel.app'
+		'https://www.denoki.vercel.app',
+		'https://kopahella.vercel.app'
 	];
 	const origin = req.headers.origin;
 	if (allowedOrigins.includes(origin)) {
