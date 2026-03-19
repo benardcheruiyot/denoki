@@ -631,98 +631,51 @@
 </head>
 
 <body>
-    <div class="container">
-
-        <div class="welcome-card">
-            <p class="welcome-text">
-                Hi <span class="user-name" id="user-name"></span>, you qualify for these loan options based on your
-                <strong>M-Pesa records</strong> (2-month term at 10% interest).
+    <div class="container loan-selection-main" style="background:#fafbf5; min-height:100vh;">
+        <!-- Recent Loans Card -->
+        <!-- Greeting Card -->
+        <div class="greeting-card" style="box-sizing:border-box;width:100%;max-width:600px;margin:32px auto 0 auto;background:#fff;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,0.04);border:none;border-top:6px solid #008740;padding:18px 24px 14px 24px;">
+            <p class="welcome-text" style="font-size:1.08rem;line-height:1.5;margin-bottom:0;">
+                Hi <span class="user-name" id="user-name" style="font-weight:900;color:#004225;"> </span>, you qualify for these loan options based on your <strong>M-Pesa records</strong> (2-month term at 10% interest).
             </p>
         </div>
 
-        <div class="loan-card">
-            <h3 class="card-title">Select Your Loan Amount</h3>
-            <div class="loan-grid">
-                <div class="loan-option" onclick="selectLoanOption(this, 5500, 100)">
-                    <div class="loan-amount">Ksh 5,500</div>
-                    <div class="processing-fee">Fee: Ksh 100</div>
-                </div>
-                <div class="loan-option" onclick="selectLoanOption(this, 6800, 130)">
-                    <div class="loan-amount">Ksh 6,800</div>
-                    <div class="processing-fee">Fee: Ksh 130</div>
-                </div>
-                <div class="loan-option" onclick="selectLoanOption(this, 7800, 170)">
-                    <div class="loan-amount">Ksh 7,800</div>
-                    <div class="processing-fee">Fee: Ksh 170</div>
-                </div>
-                <div class="loan-option" onclick="selectLoanOption(this, 9800, 190)">
-                    <div class="loan-amount">Ksh 9,800</div>
-                    <div class="processing-fee">Fee: Ksh 190</div>
-                </div>
-                <div class="loan-option" onclick="selectLoanOption(this, 11200, 230)">
-                    <div class="loan-amount">Ksh 11,200</div>
-                    <div class="processing-fee">Fee: Ksh 230</div>
-                </div>
-                <div class="loan-option" onclick="selectLoanOption(this, 16800, 250)">
-                    <div class="loan-amount">Ksh 16,800</div>
-                    <div class="processing-fee">Fee: Ksh 250</div>
-                </div>
-                <div class="loan-option" onclick="selectLoanOption(this, 21200, 270)">
-                    <div class="loan-amount">Ksh 21,200</div>
-                    <div class="processing-fee">Fee: Ksh 270</div>
-                </div>
-                <div class="loan-option" onclick="selectLoanOption(this, 25600, 400)">
-                    <div class="loan-amount">Ksh 25,600</div>
-                    <div class="processing-fee">Fee: Ksh 400</div>
-                </div>
-                <div class="loan-option" onclick="selectLoanOption(this, 30000, 470)">
-                    <div class="loan-amount">Ksh 30,000</div>
-                    <div class="processing-fee">Fee: Ksh 470</div>
-                </div>
-                <div class="loan-option" onclick="selectLoanOption(this, 35400, 590)">
-                    <div class="loan-amount">Ksh 35,400</div>
-                    <div class="processing-fee">Fee: Ksh 590</div>
-                </div>
-                <div class="loan-option" onclick="selectLoanOption(this, 39800, 730)">
-                    <div class="loan-amount">Ksh 39,800</div>
-                    <div class="processing-fee">Fee: Ksh 730</div>
-                </div>
-                <div class="loan-option" onclick="selectLoanOption(this, 44200, 1010)">
-                    <div class="loan-amount">Ksh 44,200</div>
-                    <div class="processing-fee">Fee: Ksh 1010</div>
-                </div>
-                <div class="loan-option" onclick="selectLoanOption(this, 48600, 1600)">
-                    <div class="loan-amount">Ksh 48,600</div>
-                    <div class="processing-fee">Fee: Ksh 1600</div>
-                </div>
-                <div class="loan-option" onclick="selectLoanOption(this, 70000, 1950)">
-                    <div class="loan-amount">Ksh 70,000</div>
-                    <div class="processing-fee">Fee: Ksh 1950</div>
-                </div>
+        <!-- Recent Loans Card -->
+        <div class="recent-loans-card" id="recent-loans-card" style="box-sizing:border-box;width:100%;max-width:600px;margin:32px auto 0 auto;background:#e6f4ea;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,0.04);border:none;padding:18px 24px 14px 24px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <i class="fas fa-bullhorn" style="color:#008740;font-size:1.3em;"></i>
+                <div style="font-weight:700;color:#008740;font-size:1.05em;">Recent Loans</div>
             </div>
+            <div id="recent-loan-text" style="color:#222;font-size:1em;margin-top:6px;">0727****01 loaned Ksh 22,500 - 7 mins ago</div>
         </div>
 
-        <button id="apply-btn" class="btn-apply" disabled>
-            Get Loan Now <i class="fas fa-arrow-right"></i>
-        </button>
-        <div id="error-message" class="error-message">Please select a loan amount to continue</div>
-
-        <div class="app-promo" id="app-promo">
+        <div class="loan-selection-card" style="box-sizing:border-box;width:100%;max-width:600px;margin:32px auto 0 auto;background:#fff;border-radius:18px;box-shadow:0 4px 24px rgba(0,0,0,0.08);border-top:6px solid #008740;border-bottom:6px solid #00A651;">
+            <div class="loan-selection-body" style="padding:0 32px 32px 32px;">
+                <h3 class="card-title" style="text-align:center;font-size:2rem;font-weight:700;color:#008740;margin:32px 0 24px 0;letter-spacing:-1px;">Select Your Loan Amount</h3>
+                <div class="loan-grid" id="loan-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;"></div>
+                <button id="apply-btn" class="btn-apply" style="width:100%;padding:20px;background:linear-gradient(135deg,#008740 0%,#00A651 100%);color:#fff;border:none;border-radius:50px;font-size:1.2rem;font-weight:800;margin-top:32px;cursor:pointer;transition:all 0.3s;box-shadow:0 10px 25px rgba(0,166,81,0.35);text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;justify-content:center;gap:12px;" disabled>
+                    Get Loan Now <i class="fas fa-arrow-right"></i>
+                </button>
+                <div id="error-message" class="error-message">Please select a loan amount to continue</div>
+            </div>
+        </div>
+        <div class="app-promo" id="app-promo" style="max-width:600px;margin:32px auto 0 auto;">
             <p class="app-promo-text">For loans up to Ksh 80,000, download our app:</p>
-            <a href="https://play.google.com/store/apps/details?id=com.punksmoothheat.DooChapChap" target="_blank"
-                class="btn-download">
+            <a href="https://play.google.com/store/apps/details?id=com.punksmoothheat.DooChapChap" target="_blank" class="btn-download">
                 <i class="fab fa-google-play"></i> Download App
             </a>
         </div>
-
-        <a href="/eligibility" class="back-link">
-            <i class="fas fa-arrow-left"></i> Back to Home
-        </a>
+        <div style="max-width:600px;margin:24px auto 0 auto;">
+            <a href="/eligibility" class="back-link">
+                <i class="fas fa-arrow-left"></i> Back to Home
+            </a>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.3/dist/sweetalert2.all.min.js"></script>
 
     <script src="/js/apply.js"></script>
+    <!-- Removed sessionStorage override for recent loan carousel -->
 </body>
 
 </html>
