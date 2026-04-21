@@ -31,9 +31,7 @@ app.post('/api/manual_callback', (req, res) => {
   if (stkPendingTx.has(msisdn)) {
     const pending = stkPendingTx.get(msisdn);
     if (pending && pending.txId === txId) {
-			if (!STK_LOCK_UNTIL_RESTART) {
-				stkPendingTx.delete(msisdn);
-			}
+			stkPendingTx.delete(msisdn);
     }
   }
   console.log('Manual callback simulated:', { txId, status: normStatus, msisdn });
@@ -90,12 +88,17 @@ setInterval(() => {
 	}
 }, 60 * 60 * 1000); // every hour
 const STK_RATE_LIMIT_WINDOW = Number(process.env.STK_RATE_LIMIT_WINDOW_MS || 0); // disabled by default
-const STK_PENDING_TX_TIMEOUT = 5 * 60 * 1000; // 5 minutes
-const STK_LOCK_UNTIL_RESTART = String(process.env.STK_LOCK_UNTIL_RESTART || 'true').toLowerCase() === 'true';
+const STK_PENDING_TX_TIMEOUT = Number(process.env.STK_PENDING_TX_TIMEOUT_MS || 5 * 60 * 1000); // 5 minutes
 
 // Cleanup old pending transactions and rate limit entries every minute
 setInterval(() => {
 	const now = Date.now();
+	// Clean pending transactions so stale locks do not block new STK pushes.
+	for (const [msisdn, val] of stkPendingTx.entries()) {
+		if (!val || !val.createdAt || now - val.createdAt > STK_PENDING_TX_TIMEOUT) {
+			stkPendingTx.delete(msisdn);
+		}
+	}
 	// Clean rate limit entries
 	for (const [msisdn, ts] of stkRateLimit.entries()) {
 		if (now - ts > STK_PENDING_TX_TIMEOUT) {
@@ -116,12 +119,14 @@ app.post('/api/haskback_push', async (req, res) => {
 	} else if (!msisdn.startsWith('254')) {
 		msisdn = '254' + msisdn;
 	}
-	// Block if there is a pending transaction for this msisdn
-	if (stkPendingTx.has(msisdn)) {
-		const lockMessage = STK_LOCK_UNTIL_RESTART
-			? 'STK push is locked for this number until app redeploy/restart.'
-			: 'You have a pending transaction. Please complete it before initiating a new one.';
-		return res.status(429).json({ success: false, message: lockMessage });
+	// Block only while a fresh pending transaction exists for this MSISDN.
+	const pending = stkPendingTx.get(msisdn);
+	if (pending) {
+		if (!pending.createdAt || now - pending.createdAt > STK_PENDING_TX_TIMEOUT) {
+			stkPendingTx.delete(msisdn);
+		} else {
+			return res.status(429).json({ success: false, message: 'You have a pending transaction. Please complete it before initiating a new one.' });
+		}
 	}
 	// Rate limit: 1 request per msisdn per minute
 	const now = Date.now();
@@ -195,6 +200,8 @@ app.post('/api/haskback_push', async (req, res) => {
 		if (error.response && error.response.data) {
 			console.error('Hashback API error response:', error.response.data);
 		}
+		// If initiation fails, clear pending lock so user can retry immediately.
+		stkPendingTx.delete(msisdn);
 		res.status(500).json({ success: false, error: error.response?.data || error.message });
 	}
 });
@@ -205,11 +212,8 @@ app.post('/api/clear_pending_tx', (req, res) => {
 	if (!msisdn) return res.status(400).json({ success: false, message: 'msisdn required' });
 	const pending = stkPendingTx.get(msisdn);
 	if (pending && (pending.txId === txId || !txId)) {
-		if (STK_LOCK_UNTIL_RESTART) {
-			return res.json({ success: true, locked: true, message: 'STK lock remains active until app redeploy/restart.' });
-		}
 		stkPendingTx.delete(msisdn);
-		return res.json({ success: true, locked: false });
+		return res.json({ success: true });
 	}
 	res.status(400).json({ success: false, message: 'txId does not match pending transaction' });
 });
@@ -254,9 +258,7 @@ app.post('/api/haskback_status', (req, res) => {
 		return res.json({ status: 'FAILED', message: 'No pending transaction found.' });
 	}
 	if (now - pending.createdAt > STK_PENDING_TX_TIMEOUT) {
-		if (!STK_LOCK_UNTIL_RESTART) {
-			stkPendingTx.delete(msisdn);
-		}
+		stkPendingTx.delete(msisdn);
 		return res.json({ status: 'FAILED', message: 'Transaction timed out.' });
 	}
 	return res.json({ status: 'PENDING', message: 'Transaction is still pending.' });
@@ -289,9 +291,7 @@ app.post('/api/haskback_callback', (req, res) => {
 	if (stkPendingTx.has(msisdn)) {
 		const pending = stkPendingTx.get(msisdn);
 		if (pending && pending.txId === txId) {
-			if (!STK_LOCK_UNTIL_RESTART) {
-				stkPendingTx.delete(msisdn);
-			}
+			stkPendingTx.delete(msisdn);
 		}
 	}
 	return res.json({ success: true });
