@@ -19,3 +19,11 @@
 - `/api/haskback_push` — Initiate Haskback transaction (implement as needed)
 - `/api/haskback_status` — Check transaction status (implement as needed)
 - `/api/haskback_callback` — Callback endpoint
+
+## InterServer Deployment
+
+Use the ready-made deployment files in `backend/deploy/interserver`:
+
+- `backend/deploy/interserver/nginx.conf` — Nginx reverse proxy + static frontend
+- `backend/deploy/interserver/apache-vhost.conf` — Apache reverse proxy + SPA fallback
+- `backend/deploy/interserver/DEPLOY.md` — full step-by-step deployment guide

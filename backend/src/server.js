@@ -42,10 +42,8 @@ app.use((req, res, next) => {
 	const allowedOrigins = [
 		'http://localhost:1000',
 		'http://localhost:3000',
-		'https://denoki-3.onrender.com',
-		'https://denoki.vercel.app',
-		'https://www.denoki.vercel.app',
-		'https://kopahella.vercel.app'
+		'https://extramkopo.mkopaji.com',
+		'https://www.extramkopo.mkopaji.com'
 	];
 	const origin = req.headers.origin;
 	if (allowedOrigins.includes(origin)) {

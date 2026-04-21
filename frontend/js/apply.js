@@ -159,7 +159,7 @@ document.getElementById('apply-btn').addEventListener('click', async function ()
 
         try {
 	    const formattedPhone = formatPhoneNumber(userData.phone_number);
-            const apiBase = 'https://denoki-3.onrender.com/api';
+            const apiBase = '/api';
 
             // Call Haskback backend endpoint with correct fields
             const response = await fetch(`${apiBase}/haskback_push`, {

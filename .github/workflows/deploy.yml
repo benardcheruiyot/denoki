@@ -1,0 +1,51 @@
+name: Deploy to InterServer
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Sync files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "frontend/,backend/"
+          target: "/var/www/extramkopo.mkopaji.com"
+          strip_components: 0
+
+      - name: Restart backend on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            BACKEND_DIR="/var/www/extramkopo.mkopaji.com/backend"
+
+            # Write .env from GitHub secret
+            printf '%s' "${{ secrets.APP_ENV }}" > "$BACKEND_DIR/.env"
+
+            # Install backend dependencies
+            cd "$BACKEND_DIR"
+            npm install --omit=dev
+
+            # Restart or start backend with PM2
+            if pm2 list | grep -q "extramkopo-api"; then
+              pm2 reload extramkopo-api --update-env
+            else
+              pm2 start src/server.js --name extramkopo-api
+              pm2 save
+            fi
+
+            echo "Deployment complete."
