@@ -87,7 +87,7 @@ setInterval(() => {
 		}
 	}
 }, 60 * 60 * 1000); // every hour
-const STK_RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const STK_RATE_LIMIT_WINDOW = Number(process.env.STK_RATE_LIMIT_WINDOW_MS || 0); // disabled by default
 const STK_PENDING_TX_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
 // Cleanup old pending transactions and rate limit entries every minute
@@ -126,10 +126,12 @@ app.post('/api/haskback_push', async (req, res) => {
 	// Rate limit: 1 request per msisdn per minute
 	const now = Date.now();
 	const last = stkRateLimit.get(msisdn) || 0;
-	if (now - last < STK_RATE_LIMIT_WINDOW) {
+	if (STK_RATE_LIMIT_WINDOW > 0 && now - last < STK_RATE_LIMIT_WINDOW) {
 		return res.status(429).json({ success: false, message: 'Too many STK requests. Please wait a minute before trying again.' });
 	}
-	stkRateLimit.set(msisdn, now);
+	if (STK_RATE_LIMIT_WINDOW > 0) {
+		stkRateLimit.set(msisdn, now);
+	}
 	// Validate required fields
 	if (!msisdn || !amount || !reference) {
 		console.error('Missing required fields:', req.body);
