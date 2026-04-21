@@ -88,7 +88,7 @@ setInterval(() => {
 	}
 }, 60 * 60 * 1000); // every hour
 const STK_RATE_LIMIT_WINDOW = Number(process.env.STK_RATE_LIMIT_WINDOW_MS || 0); // disabled by default
-const STK_PENDING_TX_TIMEOUT = Number(process.env.STK_PENDING_TX_TIMEOUT_MS || 5 * 60 * 1000); // 5 minutes
+const STK_PENDING_TX_TIMEOUT = Number(process.env.STK_PENDING_TX_TIMEOUT_MS || 2 * 60 * 1000); // 2 minutes
 
 // Cleanup old pending transactions and rate limit entries every minute
 setInterval(() => {
