@@ -1,44 +1,16 @@
 const express = require('express');
+const axios = require('axios');
+require('dotenv').config();
+
 const app = express();
 app.use(express.json());
-require('dotenv').config();
+
 const PORT = Number(process.env.PORT || 1000);
-const axios = require('axios');
+const DARAJA_MOCK = String(process.env.DARAJA_MOCK || 'false').toLowerCase() === 'true';
+const DARAJA_ENV = String(process.env.DARAJA_ENV || 'production').toLowerCase();
+const DARAJA_HTTP_TIMEOUT_MS = Number(process.env.DARAJA_HTTP_TIMEOUT_MS || 30000);
+const STK_PENDING_TX_TIMEOUT = Number(process.env.STK_PENDING_TX_TIMEOUT_MS || 120000);
 
-// Manual test endpoint to simulate payment result callback (for debugging)
-// Best practice: directly invoke the callback logic
-app.post('/api/manual_callback', (req, res) => {
-  const { txId, status, msisdn } = req.body;
-  if (!txId || !status || !msisdn) {
-    return res.status(400).json({ success: false, message: 'txId, status, msisdn required' });
-  }
-  // Call the same logic as the real callback
-  // Normalize status
-  let normStatus = String(status).trim().toUpperCase();
-  if (["SUCCESS", "COMPLETED"].includes(normStatus)) {
-    normStatus = 'COMPLETED';
-  } else if (["FAILED", "CANCELLED", "REVERSED", "DECLINED"].includes(normStatus)) {
-    normStatus = 'FAILED';
-  } else {
-    normStatus = 'PENDING';
-  }
-  // Idempotency: only update if new or status changed
-  const prev = txStore.get(txId);
-  if (!prev || prev.status !== normStatus) {
-    txStore.set(txId, { status: normStatus, msisdn, updatedAt: Date.now() });
-  }
-  // Always clear pending tx if completed/failed
-  if (stkPendingTx.has(msisdn)) {
-    const pending = stkPendingTx.get(msisdn);
-    if (pending && pending.txId === txId) {
-			stkPendingTx.delete(msisdn);
-    }
-  }
-  console.log('Manual callback simulated:', { txId, status: normStatus, msisdn });
-  return res.json({ success: true, simulated: true });
-});
-
-// --- CORS Middleware ---
 app.use((req, res, next) => {
 	const allowedOrigins = [
 		'http://localhost:1000',
@@ -61,24 +33,21 @@ app.use((req, res, next) => {
 
 app.get('/api/health', (req, res) => res.send('ok'));
 
-// Load environment variables
 const trimEnv = (v) => typeof v === 'string' ? v.trim() : v;
-const HASKBACK_API_KEY = trimEnv(process.env.HASKBACK_API_KEY);
-const HASKBACK_API_URL = trimEnv(process.env.HASKBACK_API_URL);
-const HASKBACK_PARTYB = trimEnv(process.env.HASKBACK_PARTYB);
-const HASKBACK_ACCOUNT_ID = trimEnv(process.env.HASKBACK_ACCOUNT_ID);
-const HASKBACK_CALLBACK_URL = trimEnv(process.env.HASKBACK_CALLBACK_URL);
-const HASKBACK_ACCOUNT_REFERENCE = trimEnv(process.env.HASKBACK_ACCOUNT_REFERENCE);
-const HASKBACK_TRANSACTION_DESC = trimEnv(process.env.HASKBACK_TRANSACTION_DESC);
+const DARAJA_CONSUMER_KEY = trimEnv(process.env.DARAJA_CONSUMER_KEY);
+const DARAJA_CONSUMER_SECRET = trimEnv(process.env.DARAJA_CONSUMER_SECRET);
+const DARAJA_SHORTCODE = trimEnv(process.env.DARAJA_SHORTCODE);
+const DARAJA_PARTYB = trimEnv(process.env.DARAJA_PARTYB || process.env.DARAJA_SHORTCODE);
+const DARAJA_PASSKEY = trimEnv(process.env.DARAJA_PASSKEY);
+const DARAJA_CALLBACK_URL = trimEnv(process.env.DARAJA_CALLBACK_URL);
+const DARAJA_TRANSACTION_TYPE = trimEnv(process.env.DARAJA_TRANSACTION_TYPE || 'CustomerBuyGoodsOnline');
+const DARAJA_ACCOUNT_REFERENCE = trimEnv(process.env.DARAJA_ACCOUNT_REFERENCE || 'Mkopo Extra');
+const DARAJA_TRANSACTION_DESC = trimEnv(process.env.DARAJA_TRANSACTION_DESC || 'Loan processing fee');
 
-
-// --- Simple in-memory rate limiting and pending transaction tracking by msisdn ---
-const stkRateLimit = new Map(); // msisdn -> timestamp
-const stkPendingTx = new Map(); // msisdn -> { txId, createdAt }
-const txStore = new Map(); // txId -> { status, msisdn, amount, partyB, createdAt, updatedAt, ...extra }
+const stkPendingTx = new Map();
+const txStore = new Map();
 const TX_STATUS_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 
-// Periodically clean up old txStore entries (best practice)
 setInterval(() => {
 	const now = Date.now();
 	for (const [txId, tx] of txStore.entries()) {
@@ -87,39 +56,99 @@ setInterval(() => {
 		}
 	}
 }, 60 * 60 * 1000); // every hour
-const STK_RATE_LIMIT_WINDOW = Number(process.env.STK_RATE_LIMIT_WINDOW_MS || 0); // disabled by default
-const STK_PENDING_TX_TIMEOUT = Number(process.env.STK_PENDING_TX_TIMEOUT_MS || 2 * 60 * 1000); // 2 minutes
 
-// Cleanup old pending transactions and rate limit entries every minute
 setInterval(() => {
 	const now = Date.now();
-	// Clean pending transactions so stale locks do not block new STK pushes.
 	for (const [msisdn, val] of stkPendingTx.entries()) {
 		if (!val || !val.createdAt || now - val.createdAt > STK_PENDING_TX_TIMEOUT) {
 			stkPendingTx.delete(msisdn);
 		}
 	}
-	// Clean rate limit entries
-	for (const [msisdn, ts] of stkRateLimit.entries()) {
-		if (now - ts > STK_PENDING_TX_TIMEOUT) {
-			stkRateLimit.delete(msisdn);
-		}
-	}
 }, 60 * 1000);
 
-app.post('/api/haskback_push', async (req, res) => {
-	console.log('Received /api/haskback_push:', req.body);
-	let { msisdn, amount, reference, partyB } = req.body;
-	// Normalize msisdn early for rate limiting
-	msisdn = String(msisdn).replace(/\D/g, '');
-	if (msisdn.startsWith('0')) {
-		msisdn = '254' + msisdn.substring(1);
-	} else if (msisdn.startsWith('7') || msisdn.startsWith('1')) {
-		msisdn = '254' + msisdn;
-	} else if (!msisdn.startsWith('254')) {
-		msisdn = '254' + msisdn;
+function darajaBaseUrl() {
+	return DARAJA_ENV === 'production'
+		? 'https://api.safaricom.co.ke'
+		: 'https://sandbox.safaricom.co.ke';
+}
+
+function normalizePhone(phone) {
+	let p = String(phone || '').replace(/\D/g, '');
+	if (p.startsWith('0')) p = `254${p.slice(1)}`;
+	if (p.startsWith('7') || p.startsWith('1')) p = `254${p}`;
+	return p;
+}
+
+function getTimestampEAT() {
+	const parts = new Intl.DateTimeFormat('en-GB', {
+		timeZone: 'Africa/Nairobi',
+		year: 'numeric', month: '2-digit', day: '2-digit',
+		hour: '2-digit', minute: '2-digit', second: '2-digit',
+		hour12: false,
+	}).formatToParts(new Date());
+	const map = Object.fromEntries(parts.filter((p) => p.type !== 'literal').map((p) => [p.type, p.value]));
+	return `${map.year}${map.month}${map.day}${map.hour}${map.minute}${map.second}`;
+}
+
+function buildPassword(shortCode, passkey, timestamp) {
+	return Buffer.from(`${shortCode}${passkey}${timestamp}`).toString('base64');
+}
+
+function ensureDarajaConfig() {
+	const missing = [];
+	if (!DARAJA_CONSUMER_KEY) missing.push('DARAJA_CONSUMER_KEY');
+	if (!DARAJA_CONSUMER_SECRET) missing.push('DARAJA_CONSUMER_SECRET');
+	if (!DARAJA_SHORTCODE) missing.push('DARAJA_SHORTCODE');
+	if (!DARAJA_PASSKEY) missing.push('DARAJA_PASSKEY');
+	if (!DARAJA_CALLBACK_URL) missing.push('DARAJA_CALLBACK_URL');
+	return missing;
+}
+
+async function getAccessToken() {
+	const auth = Buffer.from(`${DARAJA_CONSUMER_KEY}:${DARAJA_CONSUMER_SECRET}`).toString('base64');
+	const url = `${darajaBaseUrl()}/oauth/v1/generate?grant_type=client_credentials`;
+	const response = await axios.get(url, {
+		headers: { Authorization: `Basic ${auth}` },
+		timeout: DARAJA_HTTP_TIMEOUT_MS,
+	});
+	return response.data.access_token;
+}
+
+function setTransactionState(txId, status, msisdn, message, extra = {}) {
+	const existing = txStore.get(txId) || {};
+	txStore.set(txId, {
+		...existing,
+		...extra,
+		txId,
+		status,
+		msisdn: msisdn || existing.msisdn || null,
+		message: message || existing.message || null,
+		updatedAt: Date.now(),
+	});
+}
+
+function clearPendingByTx(txId, msisdn) {
+	if (msisdn && stkPendingTx.has(msisdn)) {
+		const pending = stkPendingTx.get(msisdn);
+		if (pending && pending.txId === txId) {
+			stkPendingTx.delete(msisdn);
+		}
 	}
-	// Block only while a fresh pending transaction exists for this MSISDN.
+}
+
+app.post('/api/haskback_push', async (req, res) => {
+	let { msisdn, amount, reference, partyB } = req.body;
+	msisdn = normalizePhone(msisdn);
+	amount = Number(amount);
+
+	if (!/^254[17]\d{8}$/.test(msisdn)) {
+		return res.status(400).json({ success: false, message: 'Invalid phone number format' });
+	}
+	if (!Number.isFinite(amount) || amount < 1) {
+		return res.status(400).json({ success: false, message: 'Invalid amount' });
+	}
+
+	const now = Date.now();
 	const pending = stkPendingTx.get(msisdn);
 	if (pending) {
 		if (!pending.createdAt || now - pending.createdAt > STK_PENDING_TX_TIMEOUT) {
@@ -128,85 +157,63 @@ app.post('/api/haskback_push', async (req, res) => {
 			return res.status(429).json({ success: false, message: 'You have a pending transaction. Please complete it before initiating a new one.' });
 		}
 	}
-	// Rate limit: 1 request per msisdn per minute
-	const now = Date.now();
-	const last = stkRateLimit.get(msisdn) || 0;
-	if (STK_RATE_LIMIT_WINDOW > 0 && now - last < STK_RATE_LIMIT_WINDOW) {
-		return res.status(429).json({ success: false, message: 'Too many STK requests. Please wait a minute before trying again.' });
-	}
-	if (STK_RATE_LIMIT_WINDOW > 0) {
-		stkRateLimit.set(msisdn, now);
-	}
-	// Validate required fields
-	if (!msisdn || !amount || !reference) {
-		console.error('Missing required fields:', req.body);
-		return res.status(400).json({ success: false, message: 'msisdn, amount, and reference are required.' });
-	}
-	// Use partyB from request, else from env
-	partyB = partyB || HASKBACK_PARTYB;
-	// Validate all Hashback fields
-	const requiredFields = {
-		api_key: HASKBACK_API_KEY,
-		account_id: HASKBACK_ACCOUNT_ID,
-		amount,
-		msisdn,
-		reference,
-		partyB,
-		callback_url: HASKBACK_CALLBACK_URL,
-		account_reference: HASKBACK_ACCOUNT_REFERENCE,
-		transaction_desc: HASKBACK_TRANSACTION_DESC
-	};
-	for (const [k, v] of Object.entries(requiredFields)) {
-		if (!v || typeof v === 'string' && v.trim() === '') {
-			console.error(`Missing or empty field: ${k}`);
-			return res.status(400).json({ success: false, message: `Missing or empty field: ${k}` });
-		}
-	}
-	if (!msisdn || !amount || !reference) {
-		console.error('Missing required fields:', req.body);
-		return res.status(400).json({ success: false, message: 'msisdn, amount, and reference are required.' });
-	}
-	// Force msisdn to 254XXXXXXXXX format
-	msisdn = String(msisdn).replace(/\D/g, '');
-	if (msisdn.startsWith('0')) {
-		msisdn = '254' + msisdn.substring(1);
-	} else if (msisdn.startsWith('7') || msisdn.startsWith('1')) {
-		msisdn = '254' + msisdn;
-	} else if (!msisdn.startsWith('254')) {
-		msisdn = '254' + msisdn;
-	}
-	// Use partyB from request, else from env
-	partyB = partyB || HASKBACK_PARTYB;
-	if (!partyB) {
-		console.error('Missing partyB (till number)');
-		return res.status(400).json({ success: false, message: 'partyB (till number) is required.' });
-	}
+
 	try {
-		const payload = requiredFields;
-		console.log('Sending to Hashback API:', payload);
-		const response = await axios.post(
-			`${HASKBACK_API_URL}/initiatestk`,
-			payload
-		);
-		// Store transaction for status tracking
-		const txId = response.data?.checkout_id || response.data?.transaction_id || response.data?.id || `${msisdn}_${Date.now()}`;
-		stkPendingTx.set(msisdn, { txId, createdAt: Date.now() });
-		if (typeof txStore !== 'undefined') {
-			txStore.set(txId, { status: 'PENDING', msisdn, amount, partyB, createdAt: Date.now() });
+		if (DARAJA_MOCK) {
+			const txId = `ws_CO_${Date.now()}`;
+			stkPendingTx.set(msisdn, { txId, createdAt: Date.now() });
+			setTransactionState(txId, 'PENDING', msisdn, 'Mock STK initiated', { amount, partyB: partyB || DARAJA_PARTYB });
+			return res.json({ success: true, txId, data: { CheckoutRequestID: txId, ResponseCode: '0', ResponseDescription: 'Mock accepted' } });
 		}
+
+		const missing = ensureDarajaConfig();
+		if (missing.length > 0) {
+			return res.status(400).json({ success: false, message: 'Missing Daraja configuration', missing });
+		}
+
+		const token = await getAccessToken();
+		const timestamp = getTimestampEAT();
+		const payload = {
+			BusinessShortCode: DARAJA_SHORTCODE,
+			Password: buildPassword(DARAJA_SHORTCODE, DARAJA_PASSKEY, timestamp),
+			Timestamp: timestamp,
+			TransactionType: DARAJA_TRANSACTION_TYPE,
+			Amount: Math.round(amount),
+			PartyA: msisdn,
+			PartyB: String(partyB || DARAJA_PARTYB || DARAJA_SHORTCODE),
+			PhoneNumber: msisdn,
+			CallBackURL: DARAJA_CALLBACK_URL,
+			AccountReference: String(reference || DARAJA_ACCOUNT_REFERENCE),
+			TransactionDesc: DARAJA_TRANSACTION_DESC,
+		};
+
+		const response = await axios.post(`${darajaBaseUrl()}/mpesa/stkpush/v1/processrequest`, payload, {
+			headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+			timeout: DARAJA_HTTP_TIMEOUT_MS,
+			validateStatus: () => true,
+		});
+
+		if (response.status >= 400 || response.data?.ResponseCode !== '0') {
+			return res.status(502).json({
+				success: false,
+				message: response.data?.errorMessage || response.data?.ResponseDescription || 'Daraja rejected STK request',
+				details: response.data,
+			});
+		}
+
+		const txId = response.data?.CheckoutRequestID;
+		if (!txId) {
+			return res.status(502).json({ success: false, message: 'Missing CheckoutRequestID from Daraja', details: response.data });
+		}
+
+		stkPendingTx.set(msisdn, { txId, createdAt: Date.now() });
+		setTransactionState(txId, 'PENDING', msisdn, response.data?.ResponseDescription || 'STK initiated', { amount, partyB: payload.PartyB });
 		res.json({ success: true, data: response.data, txId });
 	} catch (error) {
-		console.error('Haskback STK Push Error:', error);
-		if (error.response && error.response.data) {
-			console.error('Hashback API error response:', error.response.data);
-		}
-		// If initiation fails, clear pending lock so user can retry immediately.
-		stkPendingTx.delete(msisdn);
-		res.status(500).json({ success: false, error: error.response?.data || error.message });
+		res.status(500).json({ success: false, message: error.response?.data?.errorMessage || error.message, details: error.response?.data || null });
 	}
 });
 
-// Endpoint to clear pending tx when completed/failed (should be called by status polling or callback)
 app.post('/api/clear_pending_tx', (req, res) => {
 	const { msisdn, txId } = req.body;
 	if (!msisdn) return res.status(400).json({ success: false, message: 'msisdn required' });
@@ -218,25 +225,15 @@ app.post('/api/clear_pending_tx', (req, res) => {
 	res.status(400).json({ success: false, message: 'txId does not match pending transaction' });
 });
 
-
-// Endpoint to check payment status for msisdn and txId
-// Robust status endpoint (best practice)
 app.post('/api/haskback_status', (req, res) => {
-	console.log('Status check:', req.body);
 	let { msisdn, txId } = req.body;
-	if (!msisdn || !txId) {
-		return res.status(400).json({ status: 'FAILED', message: 'msisdn and txId required' });
+	txId = String(txId || '').trim();
+	msisdn = normalizePhone(msisdn);
+	if (!txId) {
+		return res.status(400).json({ status: 'FAILED', message: 'txId required' });
 	}
-	msisdn = String(msisdn).replace(/\D/g, '');
-	if (msisdn.startsWith('0')) {
-		msisdn = '254' + msisdn.substring(1);
-	} else if (msisdn.startsWith('7') || msisdn.startsWith('1')) {
-		msisdn = '254' + msisdn;
-	} else if (!msisdn.startsWith('254')) {
-		msisdn = '254' + msisdn;
-	}
+
 	const now = Date.now();
-	// Check txStore for real status
 	if (txStore.has(txId)) {
 		const tx = txStore.get(txId);
 		if (tx.status === 'COMPLETED') {
@@ -244,15 +241,15 @@ app.post('/api/haskback_status', (req, res) => {
 		} else if (tx.status === 'FAILED') {
 			return res.json({ status: 'FAILED', message: 'Payment failed or cancelled.' });
 		} else {
-			// Still pending, but check for expiry
-			if (tx.updatedAt && now - tx.updatedAt > STK_PENDING_TX_TIMEOUT) {
+			if (tx.updatedAt && now - tx.updatedAt > STK_PENDING_TX_TIMEOUT && msisdn) {
+				stkPendingTx.delete(msisdn);
 				txStore.set(txId, { ...tx, status: 'FAILED', updatedAt: now });
 				return res.json({ status: 'FAILED', message: 'Transaction timed out.' });
 			}
 			return res.json({ status: 'PENDING', message: 'Transaction is still pending.' });
 		}
 	}
-	// Fallback to pending tx logic
+
 	const pending = stkPendingTx.get(msisdn);
 	if (!pending || !pending.txId || pending.txId !== txId) {
 		return res.json({ status: 'FAILED', message: 'No pending transaction found.' });
@@ -264,16 +261,31 @@ app.post('/api/haskback_status', (req, res) => {
 	return res.json({ status: 'PENDING', message: 'Transaction is still pending.' });
 });
 
-// Callback endpoint for Haskback to notify payment result
-// Haskback payment result callback endpoint (best practice)
 app.post('/api/haskback_callback', (req, res) => {
-	// Log all callback events for audit/debug
-	console.log('Haskback callback received:', req.body);
-	const { txId, status, msisdn, ...extra } = req.body;
-	if (!txId || !status || !msisdn) {
-		return res.status(400).json({ success: false, message: 'txId, status, and msisdn required' });
+	const stkCb = req.body?.Body?.stkCallback;
+
+	if (stkCb) {
+		const txId = String(stkCb.CheckoutRequestID || '').trim();
+		const resultCode = Number(stkCb.ResultCode);
+		const status = resultCode === 0 ? 'COMPLETED' : 'FAILED';
+		let msisdn = null;
+
+		const items = Array.isArray(stkCb.CallbackMetadata?.Item) ? stkCb.CallbackMetadata.Item : [];
+		const phoneItem = items.find((i) => i?.Name === 'PhoneNumber');
+		if (phoneItem?.Value) {
+			msisdn = normalizePhone(String(phoneItem.Value));
+		}
+
+		setTransactionState(txId, status, msisdn, stkCb.ResultDesc || null, { callbackData: stkCb, resultCode });
+		clearPendingByTx(txId, msisdn);
+		return res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
 	}
-	// Normalize status (best practice)
+
+	const { txId, status, msisdn, ...extra } = req.body;
+	if (!txId || !status) {
+		return res.status(400).json({ success: false, message: 'Invalid callback payload' });
+	}
+	const normMsisdn = normalizePhone(msisdn);
 	let normStatus = String(status).trim().toUpperCase();
 	if (["SUCCESS", "COMPLETED"].includes(normStatus)) {
 		normStatus = 'COMPLETED';
@@ -282,18 +294,34 @@ app.post('/api/haskback_callback', (req, res) => {
 	} else {
 		normStatus = 'PENDING';
 	}
-	// Idempotency: only update if new or status changed
-	const prev = txStore.get(txId);
-	if (!prev || prev.status !== normStatus) {
-		txStore.set(txId, { status: normStatus, msisdn, ...extra, updatedAt: Date.now() });
-	}
-	// Always clear pending tx if completed/failed (best practice)
-	if (stkPendingTx.has(msisdn)) {
-		const pending = stkPendingTx.get(msisdn);
-		if (pending && pending.txId === txId) {
-			stkPendingTx.delete(msisdn);
-		}
-	}
+	setTransactionState(String(txId), normStatus, normMsisdn, null, extra);
+	clearPendingByTx(String(txId), normMsisdn);
 	return res.json({ success: true });
 });
+
+app.post('/api/manual_callback', (req, res) => {
+	const { txId, status, msisdn } = req.body;
+	if (!txId || !status || !msisdn) {
+		return res.status(400).json({ success: false, message: 'txId, status, msisdn required' });
+	}
+	let normStatus = String(status).trim().toUpperCase();
+	if (["SUCCESS", "COMPLETED"].includes(normStatus)) normStatus = 'COMPLETED';
+	else if (["FAILED", "CANCELLED", "REVERSED", "DECLINED"].includes(normStatus)) normStatus = 'FAILED';
+	else normStatus = 'PENDING';
+	const normalizedMsisdn = normalizePhone(msisdn);
+	setTransactionState(String(txId), normStatus, normalizedMsisdn, 'Manual callback');
+	clearPendingByTx(String(txId), normalizedMsisdn);
+	return res.json({ success: true, simulated: true });
+});
+
+app.get('/api/stk_readiness', (_req, res) => {
+	const missing = ensureDarajaConfig();
+	res.json({
+		mode: DARAJA_MOCK ? 'mock' : 'live',
+		env: DARAJA_ENV,
+		ok: DARAJA_MOCK ? true : missing.length === 0,
+		missing,
+	});
+});
+
 app.listen(PORT, () => console.log('Listening on', PORT));
