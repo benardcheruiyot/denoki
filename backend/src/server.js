@@ -1,7 +1,8 @@
 const express = require('express');
 const app = express();
 app.use(express.json());
-const PORT = process.env.PORT;
+require('dotenv').config();
+const PORT = Number(process.env.PORT || 1000);
 const axios = require('axios');
 
 // Manual test endpoint to simulate payment result callback (for debugging)
